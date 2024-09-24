@@ -1,0 +1,43 @@
+import sys
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.dynamicframe import DynamicFrame
+
+# Inicializando o Glue e Spark Contexts
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+
+# Nome do Job Glue
+job = Job(glueContext)
+args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+job.init(args['JOB_NAME'], args)
+
+# Lendo dados do DynamoDB
+dyf = glueContext.create_dynamic_frame.from_options(
+    connection_type="dynamodb",
+    connection_options={
+        "dynamodb.input.tableName": "NOME_DA_TABELA",  # Substitua com o nome da sua tabela
+        "dynamodb.throughput.read.percent": "0.5",     # Ajuste o percentual de leitura, 0.5 = 50% da capacidade
+        "dynamodb.splits": "1",                        # Número de splits (particionamento de leitura)
+        "dynamodb.region": "us-east-1"                 # Substitua pela região correta do DynamoDB
+    }
+)
+
+# Definindo o caminho no S3 para salvar os dados
+s3_output_path = "s3://SEU-BUCKET/SUA-PASTA/"
+
+# Gravando os dados do DynamoDB no S3 em formato Parquet
+glueContext.write_dynamic_frame.from_options(
+    frame = dyf,
+    connection_type = "s3",
+    connection_options = {
+        "path": s3_output_path
+    },
+    format = "parquet"  # Ou 'json', 'csv', etc., conforme preferir
+)
+
+# Encerrando o job
+job.commit()
